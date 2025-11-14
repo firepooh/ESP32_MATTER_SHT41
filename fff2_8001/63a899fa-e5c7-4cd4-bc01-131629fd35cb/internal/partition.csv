@@ -1,0 +1,16 @@
+key,type,encoding,value
+chip-factory,namespace,,
+discriminator,data,u32,634
+iteration-count,data,u32,10000
+salt,data,string,e+lV/E6amrXH1vaEhGHqapnex7p2zKyFyMaxgAgIaYg=
+vendor-id,data,u32,65522
+vendor-name,data,string,JYP
+product-id,data,u32,32769
+product-name,data,string,TempHumidity
+serial-num,data,string,b521f58c2bf444b1bad88986d43c4ba6
+dac-cert,file,binary,/home/jyp/work/ESP32C6_MATTER_SHT41/out/fff2_8001/63a899fa-e5c7-4cd4-bc01-131629fd35cb/internal/DAC_cert.der
+dac-key,file,binary,/home/jyp/work/ESP32C6_MATTER_SHT41/out/fff2_8001/63a899fa-e5c7-4cd4-bc01-131629fd35cb/internal/DAC_private_key.bin
+dac-pub-key,file,binary,/home/jyp/work/ESP32C6_MATTER_SHT41/out/fff2_8001/63a899fa-e5c7-4cd4-bc01-131629fd35cb/internal/DAC_public_key.bin
+pai-cert,file,binary,/home/jyp/work/ESP32C6_MATTER_SHT41/out/fff2_8001/staging/pai_cert.der
+verifier,data,string,7SDzlss9ZKZ/ypbIXkCAV4zbMp5MUU2ghADAcB3YkTIEHtdkbf+ixjnY1O9ddlQ1iDQm25R49LGvXWapSduv3kPLuYEhk4nbd245TE9huZS2jp1FUnYFeadIcX23Y/c91A==
+cert-dclrn,file,binary,../../.espressif/esp-matter/connectedhomeip/connectedhomeip/credentials/test/certification-declaration/Chip-Test-CD-FFF2-8001.der
