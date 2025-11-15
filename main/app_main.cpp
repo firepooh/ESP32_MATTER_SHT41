@@ -25,6 +25,8 @@
 #include <app/server/CommissioningWindowManager.h>
 #include <app/server/Server.h>
 
+#include <app_sensor.h>
+
 static const char *TAG = "app_main";
 
 using namespace esp_matter;
@@ -148,9 +150,10 @@ extern "C" void app_main()
     node_t *node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
     ABORT_APP_ON_FAILURE(node != nullptr, ESP_LOGE(TAG, "Failed to create Matter node"));
 
-    endpoint::on_off_light::config_t endpoint_config;
-    endpoint_t *app_endpoint = endpoint::on_off_light::create(node, &endpoint_config, ENDPOINT_FLAG_NONE, NULL);
-    ABORT_APP_ON_FAILURE(app_endpoint != nullptr, ESP_LOGE(TAG, "Failed to create on off light endpoint"));
+    /* Create sensor endpoints */
+    sensor_create_clusters(node);
+    /* Initialize sensor timer */
+    sensor_timer_init();
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     /* Set OpenThread platform config */
