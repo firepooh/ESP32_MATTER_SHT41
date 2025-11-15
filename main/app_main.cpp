@@ -26,6 +26,7 @@
 #include <app/server/Server.h>
 
 #include <app_sensor.h>
+#include <i2cdev.h>
 
 static const char *TAG = "app_main";
 
@@ -145,6 +146,9 @@ extern "C" void app_main()
 #ifdef CONFIG_ENABLE_USER_ACTIVE_MODE_TRIGGER_BUTTON
     app_driver_button_init();
 #endif
+
+    ESP_ERROR_CHECK(i2cdev_init());
+
     /* Create a Matter node and add the mandatory Root Node device type on endpoint 0 */
     node::config_t node_config;
     node_t *node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
@@ -152,8 +156,8 @@ extern "C" void app_main()
 
     /* Create sensor endpoints */
     sensor_create_clusters(node);
-    /* Initialize sensor timer */
-    sensor_timer_init();
+    /* Initialize sensor driver */
+    sensor_drv_init();
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     /* Set OpenThread platform config */

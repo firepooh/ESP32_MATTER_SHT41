@@ -4,4 +4,4 @@
 
 
 void sensor_create_clusters(esp_matter::node_t *node);
-void sensor_timer_init( void );
+void sensor_drv_init( void );

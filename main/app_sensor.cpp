@@ -19,13 +19,20 @@
 #include <app/server/Server.h>
 
 #include <app_sensor.h>
+#include <sht4x.h>
 
 /* test purpose config only */
+//#define LCFG_VIRTUAL_SENSOR_DATA
+
 #define LCFG_POWER_SOURCE_BATTERY_ENDPOINT0      
 
-#define LCFG_VIRTUAL_SENSOR_DATA
+#define SENSOR_UPDATE_PERIOD_SEC      10
 
-#define SENSOR_UPDATE_PERIOD_SEC      30
+
+/* I2C */
+#define CONFIG_EXAMPLE_I2C_MASTER_SCL       GPIO_NUM_2
+#define CONFIG_EXAMPLE_I2C_MASTER_SDA       GPIO_NUM_3
+#define CONFIG_I2C_MASTER_NUM               I2C_NUM_0
 
 
 static const char *TAG = "sensor";
@@ -59,6 +66,9 @@ sensor_app_context_t sensor_app_ctx = {
   .batt_voltage = 4.2f,
   .batt_percentage = 100,
 };
+
+sht4x_t sht4x_dev;
+void sensor_get( float *temperature, float *humidity );
 
 void sensor_update_temperature( uint16_t ep_id, float temp )
 {
@@ -245,6 +255,7 @@ void sensor_timer_callback(void *arg)
   sensor_test_data( &sensor_app_ctx );
   #else
   /* Read sensor data and update the attribute */
+  sensor_get( &ctx->temp, &ctx->humi );
   #endif
 
   sensor_update_temperature( ctx->temp_endpoint_id, ctx->temp );
@@ -270,3 +281,20 @@ void sensor_timer_init( void )
   ESP_ERROR_CHECK(esp_timer_start_periodic(sensor_app_ctx.sensor_timer, (SENSOR_UPDATE_PERIOD_SEC*1000*1000)));
 }
 
+void sensor_get( float *temperature, float *humidity )
+{
+  /* Use High Level Driver */
+  ESP_ERROR_CHECK(sht4x_measure(&sht4x_dev, temperature, humidity));
+  ESP_LOGI(TAG,"sht4x Sensor: %.2f °C, %.2f %%\n", *temperature, *humidity);
+}
+
+void sensor_drv_init( void )
+{
+  /* SHT4x 초기화 */
+  memset(&sht4x_dev, 0, sizeof(sht4x_t));
+
+  ESP_ERROR_CHECK(sht4x_init_desc(&sht4x_dev, CONFIG_I2C_MASTER_NUM, CONFIG_EXAMPLE_I2C_MASTER_SDA, CONFIG_EXAMPLE_I2C_MASTER_SCL));
+  ESP_ERROR_CHECK(sht4x_init(&sht4x_dev));
+
+  sensor_timer_init();
+}
