@@ -22,11 +22,16 @@
 #include <platform/ESP32/OpenthreadLauncher.h>
 #endif
 
+/* for set_tx_power() */
+#include "esp_openthread.h"
+#include <openthread/platform/radio.h>
+
 #include <app/server/CommissioningWindowManager.h>
 #include <app/server/Server.h>
 
 #include <app_sensor.h>
-#include <i2cdev.h>
+#include <app_sensor_adc.h>
+
 
 static const char *TAG = "app_main";
 
@@ -126,6 +131,11 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
     return err;
 }
 
+void set_tx_power( int8_t power ) {
+  otInstance *ins = esp_openthread_get_instance();
+  otPlatRadioSetTransmitPower(ins, power); // dBm
+}
+
 extern "C" void app_main()
 {
     esp_err_t err = ESP_OK;
@@ -147,17 +157,20 @@ extern "C" void app_main()
     app_driver_button_init();
 #endif
 
-    ESP_ERROR_CHECK(i2cdev_init());
-
     /* Create a Matter node and add the mandatory Root Node device type on endpoint 0 */
     node::config_t node_config;
     node_t *node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
     ABORT_APP_ON_FAILURE(node != nullptr, ESP_LOGE(TAG, "Failed to create Matter node"));
 
-    /* Create sensor endpoints */
+    /* Initialize sensor driver (temperature/humidity/SHT4x) */
     sensor_create_clusters(node);
-    /* Initialize sensor driver */
     sensor_drv_init();
+    
+    /* Initialize power source driver and create power source cluster */
+    sensor_pwrs_drv_init();
+    sensor_create_cluster_powersource( node );
+
+    
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     /* Set OpenThread platform config */
@@ -172,4 +185,9 @@ extern "C" void app_main()
     /* Matter start */
     err = esp_matter::start(app_event_cb);
     ABORT_APP_ON_FAILURE(err == ESP_OK, ESP_LOGE(TAG, "Failed to start Matter, err:%d", err));
+
+
+    /* Matter와 OpenThread가 완전히 시작된 후 잠시 대기 */
+    vTaskDelay(pdMS_TO_TICKS(1000)); 
+    set_tx_power(8);  /* 8dBm으로 설정 */
 }
