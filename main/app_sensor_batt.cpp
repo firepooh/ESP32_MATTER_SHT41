@@ -17,7 +17,7 @@
 #include <app/server/CommissioningWindowManager.h>
 #include <app/server/Server.h>
 
-#include <app_sensor_adc.h>
+#include <app_sensor_batt.h>
 
 #include <esp_adc/adc_oneshot.h>
 #include <esp_adc/adc_cali.h>

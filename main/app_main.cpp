@@ -30,7 +30,7 @@
 #include <app/server/Server.h>
 
 #include <app_sensor.h>
-#include <app_sensor_adc.h>
+#include <app_sensor_batt.h>
 
 
 static const char *TAG = "app_main";
