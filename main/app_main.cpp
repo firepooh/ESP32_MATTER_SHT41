@@ -171,9 +171,8 @@ extern "C" void app_main()
     sensor_drv_init();
     
     /* Initialize power source driver and create power source cluster */
-    sensor_batt_init();
     sensor_batt_create_cluster( node );
-
+    sensor_batt_init();
     
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD

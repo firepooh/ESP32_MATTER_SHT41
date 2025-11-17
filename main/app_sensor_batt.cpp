@@ -45,76 +45,98 @@ typedef struct {
   esp_timer_handle_t sensor_timer;
   uint16_t powers_endpoint_id;
 
-  float batt_voltage;
+  int     batt_mv;          /* mV 단위 */
   uint8_t batt_percentage;
 } sensor_powers_context_t;
 
 sensor_powers_context_t sensor_powers_ctx = {
   .sensor_timer = NULL,
   .powers_endpoint_id = 0,
-  .batt_voltage = 4.2f,
+  .batt_mv = 4200,
   .batt_percentage = 50,
 };
 
-//esp_timer_handle_t adc_timer;
-bool do_calibration1_chan0;
-adc_oneshot_unit_handle_t adc1_handle;
-adc_cali_handle_t adc1_cali_chan0_handle;
-float batt_voltage = 4.0f;
-uint8_t batt_percentage = 50;
+typedef struct {
+  bool do_calibration_chan;
+  adc_oneshot_unit_handle_t adc_handle;
+  adc_cali_handle_t adc_cali_chan_handle;
+} adc_context_t;
 
-static void sensor_batt_update(uint16_t endpoint_id, float voltage, uint8_t percentage, void *user_data);
+adc_context_t adc_ctx = {
+  .do_calibration_chan = false,
+  .adc_handle = NULL,
+  .adc_cali_chan_handle = NULL,
+};
 
-static void batt_adc_init ( void );
-static void batt_adc_deinit( void );
+
+static void sensor_batt_update(uint16_t endpoint_id, int millivolts, uint8_t percentage, void *user_data);
+
+static void batt_adc_init ( adc_context_t *adc_ctx );
+static void batt_adc_deinit( adc_context_t *adc_ctx );
 static bool batt_adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle);
 static void batt_adc_calibration_deinit(adc_cali_handle_t handle);
 static void batt_timer_init( void );
 
 
-static int batt_adc_read( void )
+static uint8_t batt_adc_voltage_to_percentage( int millivolts )
+{
+  /* 임시 디버깅 */
+  /* percentage는 임시로 배터리 전압을 전달 한다. 42% = 4.2V */
+  return( (uint8_t)(millivolts/100) );
+}
+
+static int batt_adc_read_mv( adc_context_t *adc_ctx )
 {
   int adc_raw;
-  int voltage;
+  int adc_millivolts;
+
+  if( adc_ctx == NULL ) {
+    ESP_LOGE(TAG, "ADC context is NULL");
+    return -1;
+  }
 
   /* light_sleep 활성화 된 상태에서 adc 측정시 매번 init()/deinit() 절차 수행 */
   /* https://github.com/espressif/esp-zigbee-sdk/issues/236 */
+  /*****************************************************************************************/
+  batt_adc_init( adc_ctx );
 
-  batt_adc_init();
-
-  ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, VBAT_ADC_CHANNEL, &adc_raw));
+  ESP_ERROR_CHECK(adc_oneshot_read(adc_ctx->adc_handle, VBAT_ADC_CHANNEL, &adc_raw));
   ESP_LOGD(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, VBAT_ADC_CHANNEL, adc_raw);
-  if (do_calibration1_chan0) {
-    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_chan0_handle, adc_raw, &voltage));
-    ESP_LOGD(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, VBAT_ADC_CHANNEL, voltage);
+  if (adc_ctx->do_calibration_chan) {
+    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_ctx->adc_cali_chan_handle, adc_raw, &adc_millivolts));
+    ESP_LOGD(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, VBAT_ADC_CHANNEL, adc_millivolts);
   }
 
-  batt_adc_deinit();
+  batt_adc_deinit( adc_ctx );
+  /*****************************************************************************************/
 
-  voltage = voltage * (VBAT_DIV_R1 + VBAT_DIV_R2) / VBAT_DIV_R2;
+  /* 분배 저항값 적용 */
+  adc_millivolts = adc_millivolts * ( (float)(VBAT_DIV_R1 + VBAT_DIV_R2) / (float)VBAT_DIV_R2 );
 
-  return(voltage);
+  return( adc_millivolts ); /* return unit (mV) */
 }
 
 
-static void batt_adc_init ( void )
+static void batt_adc_init ( adc_context_t *adc_ctx )
 {
   //-------------ADC1 Init---------------//
   adc_oneshot_unit_init_cfg_t init_config1 = {
     .unit_id = VBAT_ADC_UNIT,
   };
-  ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
+  ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc_ctx->adc_handle));
 
   //-------------ADC1 Config---------------//
   adc_oneshot_chan_cfg_t config = {
     .atten = VBAT_ADC_ATTEN,
     .bitwidth = ADC_BITWIDTH_DEFAULT,
   };
-  ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, VBAT_ADC_CHANNEL, &config));
+  ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_ctx->adc_handle, VBAT_ADC_CHANNEL, &config));
 
   //-------------ADC1 Calibration Init---------------//
-  do_calibration1_chan0 = batt_adc_calibration_init(VBAT_ADC_UNIT, VBAT_ADC_CHANNEL, VBAT_ADC_ATTEN, &adc1_cali_chan0_handle);
+  adc_ctx->do_calibration_chan = batt_adc_calibration_init(VBAT_ADC_UNIT, VBAT_ADC_CHANNEL, VBAT_ADC_ATTEN, &adc_ctx->adc_cali_chan_handle);
 
+#if 0
+  // adc 초기화 할때 해당 gpio 설정이 이미 수행 됨. 필요 없음.
   gpio_config_t io_conf = {
     .pin_bit_mask = (1ULL << GPIO_NUM_5),  // 또는 사용할 GPIO 번호
     .mode = GPIO_MODE_DISABLE,
@@ -123,17 +145,18 @@ static void batt_adc_init ( void )
     .intr_type = GPIO_INTR_DISABLE,
   };
   gpio_config(&io_conf);  
+#endif  
 }
 
 
-static void batt_adc_deinit( void )
+static void batt_adc_deinit( adc_context_t *adc_ctx )
 {
-  ESP_ERROR_CHECK(adc_oneshot_del_unit(adc1_handle));
-  if (do_calibration1_chan0) {
-    batt_adc_calibration_deinit(adc1_cali_chan0_handle);
+  ESP_ERROR_CHECK(adc_oneshot_del_unit(adc_ctx->adc_handle));
+
+  if (adc_ctx->do_calibration_chan) {
+    batt_adc_calibration_deinit(adc_ctx->adc_cali_chan_handle);
   }
 }
-
 
 
 static bool batt_adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle)
@@ -201,14 +224,12 @@ static void batt_adc_calibration_deinit(adc_cali_handle_t handle)
 
 void batt_timer_callback(void *arg)
 {
-  batt_voltage = batt_adc_read();
-  
+  sensor_powers_ctx.batt_mv = batt_adc_read_mv( &adc_ctx );
   /* percentage는 임시로 배터리 전압을 전달 한다. */
-  batt_percentage = (uint8_t)(batt_voltage/100);
-  batt_percentage = batt_percentage;
+  sensor_powers_ctx.batt_percentage = batt_adc_voltage_to_percentage( sensor_powers_ctx.batt_mv );
 
-  ESP_LOGI(TAG, "ADC Timer Callback: Voltage: %.2f V, Percentage: %d %%", batt_voltage, batt_percentage/2);
-  sensor_batt_update( 0, batt_voltage, batt_percentage, NULL );
+  ESP_LOGI(TAG, "ADC Timer Callback: Voltage: %d mV, Percentage: %d %%", sensor_powers_ctx.batt_mv, sensor_powers_ctx.batt_percentage/2);
+  sensor_batt_update( sensor_powers_ctx.powers_endpoint_id, sensor_powers_ctx.batt_mv, sensor_powers_ctx.batt_percentage, NULL );
 }
 
 
@@ -227,44 +248,49 @@ static void batt_timer_init( void )
 
 void sensor_batt_init( void )
 {
-  int voltage = 0;
-  int voltage_avg = 0;
-  int avg_count = 1;
+  int mV = 0;
+  int mV_avg = 0;
+  int avg_count = 4;
 
   /***************************************** */
   for( int i=0; i < avg_count; i++ )
   {
-    voltage = batt_adc_read();
-    voltage_avg += voltage;
+    mV = batt_adc_read_mv( &adc_ctx );
+    mV_avg += mV;
   }
+  mV_avg /= avg_count;
   /***************************************** */
-
-  voltage_avg /= avg_count;
   
-  batt_voltage = ((float)voltage_avg) * ( (float)(VBAT_DIV_R1 + VBAT_DIV_R2) / (float)VBAT_DIV_R2 ) / 1000.0f;
+  sensor_powers_ctx.batt_mv = mV_avg ;
+  /* percentage는 임시로 배터리 전압을 전달 한다. */
+  sensor_powers_ctx.batt_percentage = batt_adc_voltage_to_percentage( sensor_powers_ctx.batt_mv );
 
+  /* battery timer start */
   batt_timer_init();
 
-  ESP_LOGI(TAG, "Battery voltage: %.2f V", batt_voltage);
+  /* cluster 생성후, 초기값 update */
+  sensor_batt_update( sensor_powers_ctx.powers_endpoint_id, sensor_powers_ctx.batt_mv, sensor_powers_ctx.batt_percentage, NULL );
+
+  ESP_LOGI(TAG, "Battery voltage: %d mV", sensor_powers_ctx.batt_mv);
 }
 
 
-static void sensor_batt_update(uint16_t endpoint_id, float voltage, uint8_t percentage, void *user_data)
+static void sensor_batt_update(uint16_t endpoint_id, int millivolts, uint8_t percentage, void *user_data)
 {
-  uint32_t voltage_mv = (uint32_t)(voltage);
+  //uint32_t voltage_mv = (uint32_t)(voltage);
 
-  chip::DeviceLayer::SystemLayer().ScheduleLambda([endpoint_id, voltage_mv, percentage]() {
+  chip::DeviceLayer::SystemLayer().ScheduleLambda([endpoint_id, millivolts, percentage]() {
     // BatPercentRemaining 업데이트
     esp_matter_attr_val_t percent_val = esp_matter_nullable_uint8(percentage * 2);
     attribute::update(endpoint_id, PowerSource::Id,
                      PowerSource::Attributes::BatPercentRemaining::Id, &percent_val);
 
     // BatVoltage 업데이트
-    esp_matter_attr_val_t voltage_val = esp_matter_nullable_uint32(voltage_mv);
+    esp_matter_attr_val_t voltage_val = esp_matter_nullable_uint32(millivolts);
     attribute::update(endpoint_id, PowerSource::Id,
                      PowerSource::Attributes::BatVoltage::Id, &voltage_val);
 
-    ESP_LOGI(TAG, "Battery updated: %d mV, %d %%", (int)(voltage_mv), percentage);
+    ESP_LOGI(TAG, "Battery updated: %d mV, %d %%", millivolts, percentage);
   });
 }
 
@@ -321,13 +347,13 @@ void sensor_batt_create_cluster( esp_matter::node_t *node )
                    ATTRIBUTE_FLAG_NONE, bat_quantity_val);
 
   // BatVoltage
-  esp_matter_attr_val_t bat_voltage_val = esp_matter_nullable_uint32((uint32_t)(batt_voltage * 1000));
+  esp_matter_attr_val_t bat_voltage_val = esp_matter_nullable_uint32((uint32_t)(sensor_powers_ctx.batt_mv));
   attribute::create(power_source_cluster, 
                    PowerSource::Attributes::BatVoltage::Id, 
                    ATTRIBUTE_FLAG_NULLABLE, bat_voltage_val);
   
   // BatPercentRemaining
-  esp_matter_attr_val_t bat_percent_val = esp_matter_nullable_uint8(batt_percentage * 2);
+  esp_matter_attr_val_t bat_percent_val = esp_matter_nullable_uint8(sensor_powers_ctx.batt_percentage * 2);
   attribute::create(power_source_cluster, 
                    PowerSource::Attributes::BatPercentRemaining::Id,
                    ATTRIBUTE_FLAG_NULLABLE, bat_percent_val);
@@ -338,7 +364,7 @@ void sensor_batt_create_cluster( esp_matter::node_t *node )
                    PowerSource::Attributes::FeatureMap::Id,
                    ATTRIBUTE_FLAG_NONE, feature_map_val);
 
-  //sensor_app_ctx.batt_endpoint_id = 0;
+  sensor_powers_ctx.powers_endpoint_id = 0;
   
   ESP_LOGI(TAG, "Power Source cluster added to endpoint 0");
 }
