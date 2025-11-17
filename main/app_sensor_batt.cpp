@@ -28,10 +28,15 @@
 #define VBAT_ADC_ATTEN        ADC_ATTEN_DB_12 //  ~3.3V 대응(분배 후 입력전압 기준)
 #define VBAT_DIV_R1           2               /* 2Mohm */
 #define VBAT_DIV_R2           2               /* 2Mohm */
-#define VBAT_FULL_MV          4200            // Li-ion 1셀 가정. 코인셀 등은 값 조정
-#define VBAT_EMPTY_MV         3300            // 방전 하한 가정. 프로젝트에 맞게 조정
 
-#define ADC_UPDATE_PERIOD_SEC   60
+#define SEC2USEC(x)          (uint64_t)(((x)*1000ULL*1000ULL))
+
+
+/* 부팅 후 아래 조건 동안 UPDATE */
+#define BATT_STARTUP_UPDATE_PERIOD_SEC      (60)      /* 1 minute */ 
+#define BATT_STARTUP_UPDATE_PERIOD_CNTS     (10)      /* 10회 */ 
+/* 부팅 완료 후 아래 조건 동안 UPDATE */
+#define BATT_UPDATE_PERIOD_SEC              (60*60*6) /* 6 hours */
 
 static const char *TAG = "pwr";
 
@@ -43,6 +48,8 @@ using namespace chip::app::Clusters;
 
 typedef struct {
   esp_timer_handle_t sensor_timer;
+  uint8_t startup_update_count;
+
   uint16_t powers_endpoint_id;
 
   int     batt_mv;          /* mV 단위 */
@@ -51,6 +58,7 @@ typedef struct {
 
 sensor_powers_context_t sensor_powers_ctx = {
   .sensor_timer = NULL,
+  .startup_update_count = 0,
   .powers_endpoint_id = 0,
   .batt_mv = 4200,
   .batt_percentage = 50,
@@ -230,6 +238,16 @@ void batt_timer_callback(void *arg)
 
   ESP_LOGI(TAG, "ADC Timer Callback: Voltage: %d mV, Percentage: %d %%", sensor_powers_ctx.batt_mv, sensor_powers_ctx.batt_percentage/2);
   sensor_batt_update( sensor_powers_ctx.powers_endpoint_id, sensor_powers_ctx.batt_mv, sensor_powers_ctx.batt_percentage, NULL );
+
+  
+  if( sensor_powers_ctx.startup_update_count < BATT_STARTUP_UPDATE_PERIOD_CNTS ) {
+    /* 부팅 후 초기 업데이트 기간 동안은 짧은 주기로 업데이트 */
+    sensor_powers_ctx.startup_update_count++;
+    ESP_ERROR_CHECK(esp_timer_start_once(sensor_powers_ctx.sensor_timer, SEC2USEC(BATT_STARTUP_UPDATE_PERIOD_SEC)));
+  }else {
+    /* 이후에는 긴 주기로 업데이트 */
+    ESP_ERROR_CHECK(esp_timer_start_once(sensor_powers_ctx.sensor_timer, SEC2USEC(BATT_UPDATE_PERIOD_SEC)));
+  }
 }
 
 
@@ -242,7 +260,7 @@ static void batt_timer_init( void )
   };
 
   ESP_ERROR_CHECK(esp_timer_create(&timer_args, &sensor_powers_ctx.sensor_timer));
-  ESP_ERROR_CHECK(esp_timer_start_periodic(sensor_powers_ctx.sensor_timer, (ADC_UPDATE_PERIOD_SEC*1000*1000)));
+  ESP_ERROR_CHECK(esp_timer_start_once(sensor_powers_ctx.sensor_timer, SEC2USEC(BATT_STARTUP_UPDATE_PERIOD_SEC)));
 }
 
 
