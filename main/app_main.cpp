@@ -131,10 +131,14 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
     return err;
 }
 
-void set_tx_power( int8_t power ) {
+
+void set_tx_power( int8_t power ) 
+{
   otInstance *ins = esp_openthread_get_instance();
-  otPlatRadioSetTransmitPower(ins, power); // dBm
+  
+  (void)(otPlatRadioSetTransmitPower(ins, power)); // dBm
 }
+
 
 extern "C" void app_main()
 {
@@ -167,8 +171,8 @@ extern "C" void app_main()
     sensor_drv_init();
     
     /* Initialize power source driver and create power source cluster */
-    sensor_pwrs_drv_init();
-    sensor_create_cluster_powersource( node );
+    sensor_batt_init();
+    sensor_batt_create_cluster( node );
 
     
 
