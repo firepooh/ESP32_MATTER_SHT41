@@ -167,8 +167,7 @@ extern "C" void app_main()
     ABORT_APP_ON_FAILURE(node != nullptr, ESP_LOGE(TAG, "Failed to create Matter node"));
 
     /* Initialize sensor driver (temperature/humidity/SHT4x) */
-    sensor_create_clusters(node);
-    sensor_drv_init();
+    sensor_temp_humi_task_create( node );
     
     /* Initialize power source driver and create power source cluster */
     sensor_batt_create_cluster( node );

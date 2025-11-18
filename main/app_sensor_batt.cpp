@@ -17,6 +17,8 @@
 #include <app/server/CommissioningWindowManager.h>
 #include <app/server/Server.h>
 
+#include "app_utils.h"
+
 #include <app_sensor_batt.h>
 
 #include <esp_adc/adc_oneshot.h>
@@ -29,7 +31,7 @@
 #define VBAT_DIV_R1           2               /* 2Mohm */
 #define VBAT_DIV_R2           2               /* 2Mohm */
 
-#define SEC2USEC(x)          (uint64_t)(((x)*1000ULL*1000ULL))
+
 
 
 /* 부팅 후 아래 조건 동안 UPDATE */
