@@ -131,10 +131,24 @@ void sensor_update_humidity( uint16_t ep_id, float humi )
 }
 
 
-void sensor_update( sensor_app_context_t *ctx )
+void sensor_update( sensor_app_context_t *ctx, float temp, float humi )
 {
-  sensor_update_temperature( ctx->temp_endpoint_id, ctx->temp );
-  sensor_update_humidity( ctx->humi_endpoint_id, ctx->humi );
+  /* temp, humi 값이 이전 센서값이 소수점 첫째 자리에서 차이가 안나면 무시하고 전송 하지 않는다. */
+  if( ctx == NULL )
+    return;
+
+  bool temp_changed = ((int)(ctx->temp * 10) != (int)(temp * 10)); /* 소수점 첫째 자리 비교 */
+  bool humi_changed = ((int)(ctx->humi * 1) != (int)(humi * 1));   /* 정수부 비교 */
+
+  if (temp_changed) {
+    ctx->temp = temp;
+    sensor_update_temperature(ctx->temp_endpoint_id, ctx->temp);
+  }
+
+  if (humi_changed) {
+    ctx->humi = humi;
+    sensor_update_humidity(ctx->humi_endpoint_id, ctx->humi);
+  }
 }
 
 
@@ -281,6 +295,8 @@ static void sensor_update_period_cfg( sensor_state_t state, esp_timer_handle_t t
 
 static void sensor_temp_humi_state( sensor_app_context_t *ctx )
 {
+  float temp,humi;
+
   if( ctx == NULL )
     return;
 
@@ -298,9 +314,9 @@ static void sensor_temp_humi_state( sensor_app_context_t *ctx )
 
     case SENSOR_STATE_IDLE:
       /* get sensor data */
-      sensor_get( &ctx->temp, &ctx->humi );
+      sensor_get( &temp, &humi );
       /* report network*/
-      sensor_update( &sensor_app_ctx );
+      sensor_update( &sensor_app_ctx, temp, humi );
       /* config update timer */
       sensor_update_period_cfg( ctx->state[1], sensor_app_ctx.sensor_timer, ctx->temp, ctx->humi );
       
@@ -315,9 +331,9 @@ static void sensor_temp_humi_state( sensor_app_context_t *ctx )
     case SENSOR_STATE_RUNNING:
       /* 정상 동작 상태 */
       /* get sensor data */
-      sensor_get( &ctx->temp, &ctx->humi );
+      sensor_get( &temp, &humi );
       /* report network*/
-      sensor_update( &sensor_app_ctx );
+      sensor_update( &sensor_app_ctx, temp, humi );
       /* config update timer */
       sensor_update_period_cfg( ctx->state[1], sensor_app_ctx.sensor_timer, ctx->temp, ctx->humi );
 
