@@ -26,7 +26,14 @@
 #include <esp_adc/adc_cali_scheme.h>
 
 #define VBAT_ADC_UNIT         ADC_UNIT_1
-#define VBAT_ADC_CHANNEL      ADC_CHANNEL_5   // 예: ESP32-C6 GPIO0. 보드에 맞게 변경
+
+#if CONFIG_IDF_TARGET_ESP32C6
+#define VBAT_ADC_CHANNEL      ADC_CHANNEL_5   /* ESP32-C6 : GPIO5(ADC1_CH5) */
+#elif CONFIG_IDF_TARGET_ESP32H2
+#define VBAT_ADC_CHANNEL      ADC_CHANNEL_0   /* ESP32-H2 : GPIO1(ADC1_CH0) */
+#else
+  #error "Unsupported target"
+#endif
 #define VBAT_ADC_ATTEN        ADC_ATTEN_DB_12 //  ~3.3V 대응(분배 후 입력전압 기준)
 #define VBAT_DIV_R1           2               /* 2Mohm */
 #define VBAT_DIV_R2           2               /* 2Mohm */
